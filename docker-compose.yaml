@@ -1,0 +1,14 @@
+services:
+  node-devcontainer-template:
+    build:
+      context: .
+    image: f4zphp27xi2s27yn/my_repo_topor:node-devcontainer-template
+    container_name: node-devcontainer-template
+    restart: unless-stopped
+    networks:
+      - myNetwork
+    command: ["pm2-runtime", "start", "ecosystem.config.cjs"]
+networks:
+  myNetwork:
+    external: true
+    name: myNetwork
