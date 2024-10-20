@@ -4,11 +4,17 @@
   "description": "Template for starting a node project in a dev container",
   "main": "index.js",
   "scripts": {
+    "generate:layout": "node src/layout_generator.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:docker": "docker compose build && docker compose push",
-    "deploy:motherhouse": "docker --context motherhouse compose up"
+    "deploy:motherhouse": "docker --context motherhouse compose up",
+    "dev": "nodemon src/layout_generator.js"
   },
+  "type": "module",
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^5.3.0"
+  }
 }

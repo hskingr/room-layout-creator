@@ -1,6 +1,8 @@
 # node-devcontainer-template
 Template for starting a node project in a dev container
 
+`chmod +x ./.devcontainer/setup.sh`
+
 To deploy to mohterhouse run
 
 ```

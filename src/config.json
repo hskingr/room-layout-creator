@@ -1,0 +1,92 @@
+{
+  "room": {
+    "width": 10,
+    "length": 5,
+    "wall_thickness": 1,
+    "windows": [
+      {
+        "size": 3,
+        "wall": "north",
+        "position": 2,
+        "buffer": 0
+      },
+      {
+        "size": 2,
+        "wall": "west",
+        "position": 2,
+        "buffer": 1
+      }
+    ],
+    "doors": [
+      {
+        "size": 1,
+        "wall": "south",
+        "position": 4,
+        "buffer": 1
+      }
+    ]
+  },
+  "furniture": [
+    {
+      "name": "Sofa",
+      "width": 5,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 0,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "red",
+      "symbol": "S",
+      "facing_direction": "south",
+      "must_touch_wall": true,
+      "fixed_position": { "x": 3, "y": 5 }
+    },
+    {
+      "name": "Table",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 1,
+        "south": 1,
+        "west": 1
+      },
+      "colour": "brown",
+      "symbol": "T",
+      "facing_direction": "north",
+      "must_touch_wall": false
+    },
+    {
+      "name": "Lamp",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 0,
+        "east": 1,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "yellow",
+      "symbol": "L",
+      "facing_direction": "north",
+      "must_touch_wall": true
+    },
+    {
+      "name": "TV",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 0,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "black",
+      "symbol": "V",
+      "facing_direction": "north",
+      "must_touch_wall": true
+    }
+  ]
+}
