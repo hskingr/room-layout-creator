@@ -38,10 +38,42 @@
         "west": 0
       },
       "colour": "red",
+      "which_side_touches_wall": "east",
       "symbol": "S",
       "facing_direction": "south",
       "must_touch_wall": true,
       "fixed_position": { "x": 3, "y": 5 }
+    },
+    {
+      "name": "Compound Furniture",
+      "facing_direction": "south",
+      "which_side_touches_wall": "east",
+      "colour": "green",
+      "must_touch_wall": true,
+      "components": [
+        {
+          "main_component": true,
+          "name": "Desk",
+          "width": 3,
+          "length": 2,
+          "buffer": { "north": 0, "east": 0, "south": 0, "west": 0 },
+          "colour": "blue",
+          "symbol": "D",
+          "facing_direction": "north",
+          "must_touch_wall": false
+        },
+        {
+          "name": "Chair",
+          "width": 1,
+          "length": 1,
+          "buffer": { "north": 0, "east": 0, "south": 0, "west": 0 },
+          "colour": "green",
+          "symbol": "C",
+          "facing_direction": "north",
+          "must_touch_wall": false,
+          "position": { "x": 1, "y": 2 }
+        }
+      ]
     },
     {
       "name": "Table",
