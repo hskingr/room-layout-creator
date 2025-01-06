@@ -1,0 +1,1615 @@
+----- ./all_files_in_a_test_file.sh -----
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <input_folder> <output_file>"
+    exit 1
+fi
+
+input_folder="$1"
+output_file="$2"
+
+# Ensure the output file exists (create it if it doesn't)
+touch "$output_file"
+
+process_file() {
+    local file="$1"
+    if [ -r "$file" ]; then  # Check if file is readable
+        echo "----- $file -----" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"  # Add a blank line for separation
+    fi
+}
+
+process_directory() {
+    local dir="$1"
+    for entry in "$dir"/*; do
+        if [ -f "$entry" ]; then
+            # Ignore package-lock.json, result.txt, and files with .txt extension
+            if [[ "$entry" != *"package-lock.json"* && "$entry" != *"result.txt"* && "${entry##*.}" != "txt" ]]; then
+                process_file "$entry"
+            fi
+        elif [ -d "$entry" ]; then
+            # Ignore node_modules, storage, playground, and assets folders
+            if [[ "$entry" != *"node_modules"* && "$entry" != *"storage"* && "$entry" != *"playground"* && "$entry" != *"assets"* ]]; then
+                process_directory "$entry"
+            fi
+        fi
+    done
+}
+
+process_directory "$input_folder"
+----- ./docker-compose.yaml -----
+services:
+  node-devcontainer-template:
+    build:
+      context: .
+    image: f4zphp27xi2s27yn/my_repo_topor:node-devcontainer-template
+    container_name: node-devcontainer-template
+    restart: unless-stopped
+    networks:
+      - myNetwork
+    command: ["pm2-runtime", "start", "ecosystem.config.cjs"]
+networks:
+  myNetwork:
+    external: true
+    name: myNetwork
+
+----- ./Dockerfile -----
+# Use the official Node.js image as the base image
+FROM node:14
+
+# Set the working directory inside the container
+WORKDIR /usr/src/app
+
+# Copy just package.json and package-lock.json
+# to speed up the build using Docker layer cache.
+COPY --chown=myuser package*.json ./
+
+# Install NPM packages, skip optional and development dependencies to
+# keep the image small. Avoid logging too much and print the dependency
+# tree for debugging
+RUN npm --quiet set progress=false \
+    && npm install --omit=dev --omit=optional \
+    && echo "Installed NPM packages:" \
+    && (npm list --omit=dev --all || true) \
+    && echo "Node.js version:" \
+    && node --version \
+    && echo "NPM version:" \
+    && npm --version
+
+USER root
+RUN npm install pm2 -g
+# Next, copy the remaining files and directories with the source code.
+# Since we do this after NPM install, quick build will be really fast
+# for most source file changes.
+COPY --chown=myuser . ./
+
+ENV debug dev
+# Run the image. If you know you won't need headful browsers,
+# you can remove the XVFB start script for a micro perf gain.
+CMD ["pm2-runtime", "ecosystem.config.cjs"]
+
+----- ./ecosystem.config.cjs -----
+module.exports = {
+  apps: [
+    {
+      name: "app",
+      script: "./src/app.js",
+      env: {
+        DEBUG: "dev",
+      },
+      cron_restart: "0 0 * * *",
+    },
+  ],
+};
+
+----- ./package.json -----
+{
+  "name": "devcontainer-template",
+  "version": "1.0.0",
+  "description": "Template for starting a node project in a dev container",
+  "main": "index.js",
+  "scripts": {
+    "generate:layout": "node src/layout_generator.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:docker": "docker compose build && docker compose push",
+    "deploy:motherhouse": "docker --context motherhouse compose up",
+    "dev": "nodemon src/layout_generator.js"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^5.3.0"
+  }
+}
+
+----- ./README.md -----
+# node-devcontainer-template
+Template for starting a node project in a dev container
+
+`chmod +x ./.devcontainer/setup.sh`
+
+To deploy to mohterhouse run
+
+```
+npm run build:docker
+npm run deploy:motherhouse
+```
+
+# Files
+
+ecosystem.config.cjs
+
+This is what runs in the built docker file. It is currently set to run once every day using the `cron_restart` key. This can be removed to stop the restart from happening.
+----- ./src/app.js -----
+console.log("Hello, World!");
+
+----- ./src/config_furniture_unused.json -----
+{
+    "name": "Compound Furniture",
+    "facing_direction": "south",
+    "which_side_touches_wall": "east",
+    "colour": "green",
+    "must_touch_wall": true,
+    "components": [
+      {
+        "main_component": true,
+        "name": "Desk",
+        "width": 3,
+        "length": 2,
+        "buffer": { "north": 0, "east": 0, "south": 0, "west": 0 },
+        "colour": "blue",
+        "symbol": "D",
+        "facing_direction": "north",
+        "must_touch_wall": false
+      },
+      {
+        "name": "Chair",
+        "width": 1,
+        "length": 1,
+        "buffer": { "north": 0, "east": 0, "south": 0, "west": 0 },
+        "colour": "green",
+        "symbol": "C",
+        "facing_direction": "north",
+        "must_touch_wall": false,
+        "position": { "x": 1, "y": 2 }
+      }
+    ]
+  },
+  {
+    "name": "Table",
+    "width": 1,
+    "length": 1,
+    "buffer": {
+      "north": 1,
+      "east": 1,
+      "south": 1,
+      "west": 1
+    },
+    "colour": "brown",
+    "symbol": "T",
+    "facing_direction": "north",
+    "must_touch_wall": false
+  },
+  {
+    "name": "Lamp",
+    "width": 1,
+    "length": 1,
+    "buffer": {
+      "north": 0,
+      "east": 1,
+      "south": 0,
+      "west": 0
+    },
+    "colour": "yellow",
+    "symbol": "L",
+    "facing_direction": "north",
+    "must_touch_wall": true
+  },
+  {
+    "name": "TV",
+    "width": 1,
+    "length": 1,
+    "buffer": {
+      "north": 1,
+      "east": 0,
+      "south": 0,
+      "west": 0
+    },
+    "colour": "black",
+    "symbol": "V",
+    "facing_direction": "north",
+    "must_touch_wall": true
+  }
+----- ./src/config.json -----
+{
+  "room": {
+    "width": 10,
+    "length": 5,
+    "wall_thickness": 1,
+    "windows": [
+      {
+        "size": 3,
+        "wall": "north",
+        "position": 2,
+        "buffer": 1
+      },
+      {
+        "size": 2,
+        "wall": "west",
+        "position": 2,
+        "buffer": 1
+      }
+    ],
+    "doors": [
+      {
+        "size": 1,
+        "wall": "south",
+        "position": 4,
+        "buffer": 1
+      }
+    ]
+  },
+  "furniture": [
+    {
+      "name": "Sofa",
+      "width": 5,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 0,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "red",
+      "which_side_touches_wall": "north",
+      "symbol": "S",
+      "facing_direction": "south",
+      "must_touch_wall": true,
+      "fixed_position": { "x": 3, "y": 5 }
+    },
+    {
+      "name": "Table",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 1,
+        "south": 1,
+        "west": 1
+      },
+      "colour": "brown",
+      "symbol": "T",
+      "facing_direction": "north",
+      "must_touch_wall": false
+    },
+    {
+      "name": "Lamp",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 0,
+        "east": 1,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "yellow",
+      "symbol": "L",
+      "facing_direction": "north",
+      "must_touch_wall": true
+    },
+    {
+      "name": "TV",
+      "width": 1,
+      "length": 1,
+      "buffer": {
+        "north": 1,
+        "east": 0,
+        "south": 0,
+        "west": 0
+      },
+      "colour": "green",
+      "symbol": "V",
+      "facing_direction": "north",
+      "must_touch_wall": true
+    }
+  ]
+}
+
+----- ./src/constants.js -----
+export const directions = {
+  north: "north",
+  east: "east",
+  south: "south",
+  west: "west",
+};
+
+----- ./src/factory/FurnitureFactory.js -----
+import { Furniture } from "../models/Furniture.js";
+
+export class FurnitureFactory {
+  static createFurniture(furnitureConfigs) {
+    return furnitureConfigs.map((config) => {
+      // This is a compound furniture
+      // Has not been fully implemented yet
+      // Need to define specific placement for compound furniture inside the config
+      if (config.components) {
+        console.log("creating compound furniture");
+        // Handle compound furniture
+        const compoundGrid = this.createEmptyGrid(20, 20); // temporary size
+
+        // find the main component and process first
+        const mainComponent = new Furniture(
+          this.createSingleFurniture(
+            config.components.find((component) => component.main_component)
+          )
+        );
+
+        // the rest of the components need to be placed relative to the main component
+        // make an array of the components that are not the main component
+        const subComponents = config.components
+          .filter((component) => !component.main_component)
+          .map((component) => {
+            return new Furniture(this.createSingleFurniture(component));
+          });
+
+        // place the main component on the grid
+        this.placeComponentOnGrid(
+          compoundGrid,
+          mainComponent.createdFurniture,
+          {
+            x: 0,
+            y: 0,
+          }
+        );
+
+        console.log("subComponents", subComponents);
+
+        this.placeComponentOnGrid(
+          compoundGrid,
+          subComponents[0].createdFurniture,
+          {
+            x: subComponents[0].position.x,
+            y: subComponents[0].position.y,
+          }
+        );
+
+        this.printFurniture(compoundGrid);
+
+        // remove all empty spaces from the grid
+        const filteredGrid = compoundGrid
+          .filter((row) => row.some((cell) => cell !== " ")) // Remove empty rows
+          .map((row) => row.filter((cell) => cell !== " ")); // Remove empty cells within rows
+
+        config.createdFurniture = filteredGrid;
+        return new Furniture(config);
+      } else {
+        return this.createSingleFurniture(config);
+      }
+    });
+  }
+
+  static createEmptyGrid(length, width) {
+    return Array.from({ length }, () =>
+      Array.from({ length: width }, () => " ")
+    );
+  }
+
+  static placeComponentOnGrid(targetGrid, componentGrid, position) {
+    for (let y = 0; y < componentGrid.length; y++) {
+      for (let x = 0; x < componentGrid[0].length; x++) {
+        if (componentGrid[y][x] !== 0) {
+          targetGrid[position.y + y][position.x + x] = componentGrid[y][x];
+        }
+      }
+    }
+  }
+
+  static createSingleFurniture(furniture) {
+    // console.log(furniture);
+    console.log("creating:", furniture.name);
+    // Create a temporary grid for the furniture
+    const combinedLength =
+      furniture.length + furniture.buffer.north + furniture.buffer.south;
+    const combinedWidth =
+      furniture.width + furniture.buffer.east + furniture.buffer.west;
+    const grid = Array.from(
+      { length: combinedLength },
+      () => Array.from({ length: combinedWidth }, () => 0) // 0 represents empty space
+    );
+    // The first character will contain an arrow indicating the facing direction
+    let placedFirstCharacter = false;
+
+    let character = "";
+    const furnitureSymbol = furniture.symbol;
+    // i is the y
+    for (
+      let y = 0;
+      y < furniture.length + furniture.buffer.north + furniture.buffer.south;
+      y++
+    ) {
+      // j is the x
+      for (
+        let x = 0;
+        x < furniture.width + furniture.buffer.east + furniture.buffer.west;
+        x++
+      ) {
+        // Change character for north buffer
+        if (
+          y < furniture.buffer.north &&
+          x >= furniture.buffer.west &&
+          x < combinedWidth - furniture.buffer.east
+        ) {
+          character = ".";
+          // Change character for east buffer
+        } else if (
+          x > furniture.width + furniture.buffer.west - 1 &&
+          y >= furniture.buffer.north &&
+          y < combinedLength - furniture.buffer.south
+        ) {
+          character = ".";
+          // Change character for south buffer
+        } else if (
+          y > furniture.length + furniture.buffer.north - 1 &&
+          x > furniture.buffer.west - 1 &&
+          x < combinedWidth - furniture.buffer.east &&
+          y < combinedLength
+        ) {
+          character = ".";
+          // Change character for west buffer
+        } else if (
+          x < furniture.buffer.west &&
+          y >= furniture.buffer.north &&
+          y < combinedLength - furniture.buffer.south
+        ) {
+          character = ".";
+        } else if (
+          // Change character for furniture
+          x >= furniture.buffer.west &&
+          x <= furniture.buffer.east + furniture.width &&
+          y >= furniture.buffer.north &&
+          y < combinedLength - furniture.buffer.south
+        ) {
+          if (!placedFirstCharacter) {
+            console.log("facing direction:", furniture.facing_direction);
+            character = this.getFacingDirectionSymbol("north");
+            placedFirstCharacter = true;
+          } else {
+            console.log(furniture);
+            character = furnitureSymbol;
+          }
+        } else {
+          character = " ";
+        }
+
+        grid[y][x] = character;
+      }
+    }
+    this.printFurniture(grid);
+    furniture.createdFurniture = grid;
+    return furniture;
+  }
+
+  static printFurniture(furnitureItem) {
+    console.log("printing furniture");
+    const yLength = furnitureItem.length;
+    const xLength = furnitureItem[0].length;
+    for (let y = 0; y < yLength; y++) {
+      let row = "";
+      for (let x = 0; x < xLength; x++) {
+        if (furnitureItem[y][x] === 0) {
+          row += " . ";
+        } else if (furnitureItem[y][x] === "1") {
+          row += " # ";
+        } else if (furnitureItem[y][x] === "∎") {
+          row += " ∎ ";
+        } else if (typeof furnitureItem[y][x] !== "undefined") {
+          row += " " + furnitureItem[y][x] + " ";
+        } else {
+          row += " . ";
+        }
+      }
+      console.log(row);
+    }
+  }
+
+  static getFacingDirectionSymbol(facingDirection) {
+    switch (facingDirection) {
+      case "north":
+        return "↑";
+      case "east":
+        return "→";
+      case "south":
+        return "↓";
+      case "west":
+        return "←";
+    }
+  }
+
+  // Move other furniture creation methods from Room class here
+  // createFurnitureGrid, combineComponents, etc.
+}
+
+----- ./src/index.html -----
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Layout Visualization</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.js"></script>
+</head>
+<body>
+  <main>
+    <div class="canvas-container">
+      <canvas id="myCanvas"></canvas> </div>
+  </main>
+  <script src="sketch.js"></script> </body>
+</html>
+----- ./src/layout_generator.js -----
+import fs from "fs";
+import { Room } from "./models/Room.js";
+import { FurnitureFactory } from "./factory/FurnitureFactory.js";
+
+function readConfig(filename) {
+  const data = fs.readFileSync(filename, "utf8");
+  return JSON.parse(data);
+}
+
+const config = readConfig("./src/config.json");
+const myRoom = new Room(config);
+
+// Create furniture separately
+const furniture = FurnitureFactory.createFurniture(config.furniture);
+
+// Add furniture to room for placement
+myRoom.setFurniture(furniture);
+myRoom.printRoom();
+
+----- ./src/models/CompoundFurniture.js -----
+export class CompoundFurniture {
+  constructor(config) {
+    this.name = config.name;
+    this.components = config.components;
+    this.facing_direction = config.facing_direction;
+  }
+}
+
+----- ./src/models/Furniture.js -----
+export class Furniture {
+  constructor(config) {
+    this.name = config.name;
+    this.width = config.width;
+    this.length = config.length;
+    this.buffer = config.buffer;
+    this.colour = config.colour;
+    this.symbol = config.symbol;
+    this.facing_direction = config.facing_direction;
+    this.must_touch_wall = config.must_touch_wall;
+    this.position = config.position || { x: 0, y: 0 };
+    this.createdFurniture = config.createdFurniture;
+    this.which_side_touches_wall = config.which_side_touches_wall;
+  }
+
+  getDisplaySymbol() {
+    const directionSymbols = {
+      north: "↑",
+      south: "↓",
+      east: "→",
+      west: "←",
+    };
+
+    return {
+      symbol: directionSymbols[this.facing_direction],
+      color: this.colour,
+      bgColor: `bg${
+        this.colour.charAt(0).toUpperCase() + this.colour.slice(1)
+      }`,
+    };
+  }
+}
+
+----- ./src/models/Grid.js -----
+import chalk from "chalk";
+
+export class Grid {
+  constructor(width, length, defaultValue = " ") {
+    this.width = width;
+    this.length = length;
+    this.cells = Array.from({ length }, () =>
+      Array.from({ length: width }, () => defaultValue)
+    );
+  }
+
+  isWithinBounds(x, y) {
+    return x >= 0 && x < this.width && y >= 0 && y < this.length;
+  }
+
+  set(x, y, value) {
+    if (!this.isWithinBounds(x, y)) throw new Error("Position out of bounds");
+    this.cells[y][x] = value;
+  }
+
+  get(x, y) {
+    if (!this.isWithinBounds(x, y)) throw new Error("Position out of bounds");
+    return this.cells[y][x];
+  }
+
+  clone() {
+    const newGrid = new Grid(this.width, this.length);
+    for (let y = 0; y < this.length; y++) {
+      for (let x = 0; x < this.width; x++) {
+        newGrid.set(x, y, this.get(x, y));
+      }
+    }
+    return newGrid;
+  }
+
+  isEmpty(x, y) {
+    return this.get(x, y) === " ";
+  }
+
+  print(colorGrid) {
+    const colors = {
+      reset: chalk.reset,
+      bright: chalk.bold,
+      dim: chalk.dim,
+      underscore: chalk.underline,
+      bold: chalk.bold,
+      hidden: chalk.hidden,
+      reverse: chalk.inverse,
+
+      // Foreground colors
+      black: chalk.black,
+      red: chalk.red,
+      green: chalk.green,
+      yellow: chalk.yellow,
+      blue: chalk.blue,
+      magenta: chalk.magenta,
+      cyan: chalk.cyan,
+      white: chalk.white,
+
+      // Background colors
+      bgBlack: chalk.bgBlack,
+      bgRed: chalk.bgRed,
+      bgGreen: chalk.bgGreen,
+      bgYellow: chalk.bgYellow,
+      bgBlue: chalk.bgBlue,
+      bgMagenta: chalk.bgMagenta,
+      bgCyan: chalk.bgCyan,
+      bgWhite: chalk.bgWhite,
+    };
+
+    const colourArray = [
+      "red",
+      "green",
+      "yellow",
+      "blue",
+      "megenta",
+      "cyan",
+      "white",
+    ];
+
+    let colorIndex = 0;
+
+    for (let y = 0; y < this.length; y++) {
+      let row = "";
+      for (let x = 0; x < this.width; x++) {
+        const cell = this.get(x, y);
+        const color =
+          colourArray[
+            (colourArray.findIndex((c) => c === colorGrid.get(x, y)) %
+              colourArray.length) +
+              1
+          ];
+        let bgColor = colors.reset; // Default background color
+
+        if (typeof cell === "string" && cell.length > 1 && cell.endsWith("b")) {
+          row += colors.dim(" . ");
+        } else {
+          let symbolColor = colors.reset; // Default color
+          if (color && colors[color]) {
+            symbolColor = colors[color];
+          }
+          if (
+            color &&
+            colors[`bg${color.charAt(0).toUpperCase() + color.slice(1)}`]
+          ) {
+            bgColor =
+              colors[`bg${color.charAt(0).toUpperCase() + color.slice(1)}`];
+          }
+          const symbol = cell ? ` ${cell} ` : "   ";
+          row += bgColor(symbolColor(symbol));
+        }
+      }
+
+      console.log(row);
+    }
+  }
+}
+
+----- ./src/models/Person.js -----
+export class Person {
+  constructor(config) {
+    this.name = config.name;
+    this.position = config.position;
+    this.facing_direction = config.facing_direction;
+    this.symbol = config.symbol;
+  }
+
+  moveAround(room) {
+    room.grid[this.position.y][this.position.x] = " ";
+
+    const emptySpaces = room.findEmptySpacesAround(
+      this.position.x,
+      this.position.y
+    );
+
+    const randomIndex = Math.floor(Math.random() * emptySpaces.length);
+    const newPosition = emptySpaces[randomIndex];
+    this.position.x = newPosition.x;
+    this.position.y = newPosition.y;
+
+    room.grid[this.position.y][this.position.x] = this.symbol;
+  }
+}
+
+----- ./src/models/Room.js -----
+import { Furniture } from "./Furniture.js";
+import { Grid } from "./Grid.js";
+import chalk from "chalk";
+import { directions } from "../constants.js";
+
+export class Room {
+  constructor(config) {
+    this.width = config.room.width + 2 * config.room.wall_thickness;
+    this.length = config.room.length + 2 * config.room.wall_thickness;
+    this.interiorWidth = config.room.width;
+    this.interiorLength = config.room.length;
+    this.wallThickness = config.room.wall_thickness;
+    this.layoutGrid = new Grid(this.width, this.length);
+    this.colorGrid = new Grid(this.width, this.length);
+    this.furniture = [];
+    this.furniturePlaced = [];
+    this.furnitureNotPlaced = [];
+    this.placeWalls();
+    this.placeWindowsAndDoors(config.room.windows, config.room.doors);
+    console.log(this.layoutGrid);
+    this.printRoom();
+    this.placeFurniture();
+  }
+
+  setFurniture(furniture) {
+    this.furniture = furniture;
+    this.placeFurniture();
+  }
+
+  findEmptySpacesAround(x, y) {
+    const emptySpaces = [];
+    const directions = [
+      { dx: -1, dy: 0 }, // left
+      { dx: 1, dy: 0 }, // right
+      { dx: 0, dy: -1 }, // up
+      { dx: 0, dy: 1 }, // down
+      { dx: -1, dy: -1 }, // top-left
+      { dx: 1, dy: -1 }, // top-right
+      { dx: -1, dy: 1 }, // bottom-left
+      { dx: 1, dy: 1 }, // bottom-right
+    ];
+
+    for (const { dx, dy } of directions) {
+      const newX = x + dx;
+      const newY = y + dy;
+
+      if (
+        this.layoutGrid.isWithinBounds(newX, newY) &&
+        this.layoutGrid.get(newX, newY) === " "
+      ) {
+        emptySpaces.push({ x: newX, y: newY });
+      }
+    }
+
+    return emptySpaces;
+  }
+
+  placeWalls() {
+    const isWall = (x, y) =>
+      x < this.wallThickness ||
+      x >= this.width - this.wallThickness ||
+      y < this.wallThickness ||
+      y >= this.length - this.wallThickness;
+
+    for (let x = 0; x < this.width; x++) {
+      for (let y = 0; y < this.length; y++) {
+        if (isWall(x, y)) {
+          this.layoutGrid.set(x, y, "1");
+          this.colorGrid.set(x, y, "magenta");
+        }
+      }
+    }
+  }
+
+  placeWindowsAndDoors(windows, doors) {
+    for (const window of windows) {
+      try {
+        console.log("placing window", window);
+        this.placeElementOnWall(window, "W");
+      } catch (error) {
+        console.log(error);
+      }
+    }
+    for (const door of doors) {
+      try {
+        console.log("placing door", door);
+        this.placeElementOnWall(door, "D");
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  }
+
+  placeElementOnWall(element, symbol) {
+    // Door or Window
+    try {
+      const wallThicknessCells = Math.round(this.wallThickness);
+
+      let startX, startY, endX, endY;
+      switch (element.wall) {
+        case "north":
+          startX = Math.round(element.position) + wallThicknessCells;
+          startY = 0;
+          endX = startX + Math.round(element.size);
+          endY = startY + wallThicknessCells;
+          break;
+        case "south":
+          startX = Math.round(element.position) + wallThicknessCells;
+          startY = this.length - wallThicknessCells;
+          endX = startX + Math.round(element.size);
+          endY = this.length;
+          break;
+        case "west":
+          startX = 0;
+          startY = Math.round(element.position) + wallThicknessCells;
+          endX = wallThicknessCells;
+          endY = startY + Math.round(element.size);
+          break;
+        case "east":
+          startX = this.width - wallThicknessCells;
+          startY = Math.round(element.position) + wallThicknessCells;
+          endX = this.width;
+          endY = startY + Math.round(element.size);
+          break;
+      }
+
+      // console.log("startX", startX);
+      // console.log("startY", startY);
+      // console.log("endX", endX);
+      // console.log("endY", endY);
+
+      if (startX < 0 || startY < 0 || endX > this.width || endY > this.length) {
+        throw new Error("Element is out of bounds");
+      } else if (startX === endX || startY === endY) {
+        throw new Error("Element has zero size");
+      } else if (
+        (startX === 0 && startY === 0) || // Top-left corner
+        (startX === this.width - wallThicknessCells && startY === 0) || // Top-right corner
+        (startX === 0 && endY === this.length) || // Bottom-left corner
+        (startX === this.width - wallThicknessCells && endY === this.length) // Bottom-right corner
+      ) {
+        throw new Error("Element is on a corner wall");
+      }
+
+      for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+          this.layoutGrid.set(x, y, symbol);
+          this.colorGrid.set(x, y, "cyan");
+        }
+      }
+
+      // Mark interior buffer zone (adjust as needed based on your buffer definition)
+      const interiorBufferCells = Math.round(element.buffer);
+      switch (element.wall) {
+        case "north":
+          startY = wallThicknessCells;
+          endY = startY + interiorBufferCells;
+          break;
+        case "south":
+          startY = this.length - wallThicknessCells - interiorBufferCells;
+          endY = this.length - wallThicknessCells;
+          break;
+        case "west":
+          startX = wallThicknessCells;
+          endX = startX + interiorBufferCells;
+          break;
+        case "east":
+          startX = this.width - wallThicknessCells - interiorBufferCells;
+          endX = this.width - wallThicknessCells;
+          break;
+      }
+
+      for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+          if (this.layoutGrid.get(x, y) === " ") {
+            this.layoutGrid.set(x, y, "━");
+            this.colorGrid.set(x, y, "cyan");
+          }
+        }
+      }
+
+      return true; // Indicate success
+    } catch (error) {
+      console.log("error placeElementOnWall: ", error);
+      return false; // Indicate failure
+    }
+  }
+
+  placeComponentOnGrid(targetGrid, componentGrid, position) {
+    for (let y = 0; y < componentGrid.length; y++) {
+      for (let x = 0; x < componentGrid[0].length; x++) {
+        if (componentGrid[y][x] !== 0) {
+          targetGrid.set(position.x + x, position.y + y, componentGrid[y][x]);
+        }
+      }
+    }
+  }
+
+  // instead of placing, create it and store it in an array and then try placing it.
+
+  rotateFurniture(furniture, currentOrientation, newOrientation) {
+    let rotatedFurniture = furniture;
+
+    let rotations = 0;
+
+    // Determine how many rotations are needed
+    if (currentOrientation === newOrientation) {
+      return furniture;
+    } else if (newOrientation === "east") {
+      rotations = 1;
+    } else if (newOrientation === "south") {
+      rotations = 2;
+    } else if (newOrientation === "west") {
+      rotations = 3;
+    }
+
+    console.log("rotations", rotations);
+    console.log("furniture", furniture);
+
+    // Rotate the furniture
+
+    for (let i = 0; i < rotations; i++) {
+      const length = rotatedFurniture.length;
+      const width = rotatedFurniture[0].length;
+      const newFurniture = Array.from({ length: width }, () =>
+        Array.from({ length: length }, () => 0)
+      );
+
+      for (let y = 0; y < length; y++) {
+        for (let x = 0; x < width; x++) {
+          // update the arrow direction
+          if (rotatedFurniture[y][x] === "↑") {
+            newFurniture[x][length - 1 - y] = "→";
+          } else if (rotatedFurniture[y][x] === "→") {
+            newFurniture[x][length - 1 - y] = "↓";
+          } else if (rotatedFurniture[y][x] === "↓") {
+            newFurniture[x][length - 1 - y] = "←";
+          } else if (rotatedFurniture[y][x] === "←") {
+            newFurniture[x][length - 1 - y] = "↑";
+          } else {
+            newFurniture[x][length - 1 - y] = rotatedFurniture[y][x];
+          }
+        }
+      }
+
+      rotatedFurniture = newFurniture;
+    }
+
+    console.log("rotated furniture", rotatedFurniture);
+
+    return rotatedFurniture;
+  }
+
+  cloneGrid() {
+    const newGrid = new Grid(this.width, this.length);
+    for (let y = 0; y < this.length; y++) {
+      for (let x = 0; x < this.width; x++) {
+        newGrid.set(x, y, this.layoutGrid.get(x, y));
+      }
+    }
+    return newGrid;
+  }
+
+  tryPlaceFurniture(x, y, createdFurniture, color) {
+    const tempLayoutGrid = this.layoutGrid.clone();
+    const tempColorGrid = this.colorGrid.clone();
+
+    for (let i = 0; i < createdFurniture.length; i++) {
+      for (let j = 0; j < createdFurniture[0].length; j++) {
+        if (
+          x + j < this.width &&
+          y + i < this.length &&
+          createdFurniture[i][j] !== " "
+        ) {
+          tempLayoutGrid.set(x + j, y + i, createdFurniture[i][j]);
+          tempColorGrid.set(x + j, y + i, color);
+        }
+      }
+    }
+
+    return { tempLayoutGrid, tempColorGrid };
+  }
+
+  placeFurniture() {
+    this.furniture.forEach((furniture) => {
+      if (typeof furniture === "undefined") {
+        return;
+      }
+      console.log("furniture", furniture);
+      console.log("placing:", furniture.name);
+      const roomWidth = this.width;
+      const roomLength = this.length;
+
+      let createdFurniture = furniture.createdFurniture;
+      const newOrientation = furniture.facing_direction || "north";
+      createdFurniture = this.rotateFurniture(
+        createdFurniture,
+        "north",
+        newOrientation
+      );
+
+      console.log("created furniture", createdFurniture);
+
+      const furnitureWidth = createdFurniture[0].length;
+      const furnitureLength = createdFurniture.length;
+      let furniturePlaced = false;
+
+      // Iterate through the room grid
+      for (let y = 0; y < roomLength - 1; y++) {
+        for (let x = 0; x < roomWidth - 1; x++) {
+          if (!furniturePlaced) {
+            let isValid = true;
+
+            // go through each tile and check if the furniture item can be placed there
+            // Iterate thiough the furniture grid
+            for (let i = 0; i < furnitureLength; i++) {
+              for (let j = 0; j < furnitureWidth; j++) {
+                if (x + j < roomWidth && y + i < roomLength) {
+                  if (
+                    this.layoutGrid.get(x + j, y + i) === " " ||
+                    createdFurniture[i][j] === " "
+                  ) {
+                    // Only do this check on the first iteration
+                    if (i === 0 && j === 0 && furniture.must_touch_wall) {
+                      console.log("furniture must touch wall");
+                      // Check to see if the furniture needs to be placed on a wall
+                      // The back of the furniture should touch a wall
+                      // This is determined by comparing the furnitures orientation with the wall it is touching
+
+                      // First get the current location of the pointer
+                      const currentLocation = this.layoutGrid.get(x, y);
+
+                      // Second get the positions of space next to the walls
+
+                      // Third get positions of the back of the furniture
+
+                      // Fourth compare both coridnates and see if the coordinates for the back of the furniture are
+                      // in the list of coordinates for the space next to the wall
+
+                      // console.log(
+                      //   "facing direction:",
+                      //   furniture.facing_direction
+                      // ); // facing direction of the furniture
+
+                      /**
+                       * Returns the opposite facing wall direction based on the given direction.
+                       *
+                       * @param {string} direction - The current direction.
+                       * @returns {string} - The facing wall direction.
+                       */
+                      const getBackFacingWall = (direction) => {
+                        const currentOrientationIndex = Object.values(
+                          directions
+                        ).findIndex((item) => item === direction);
+                        let newIndex = (currentOrientationIndex + 2) % 4;
+                        return Object.values(directions)[newIndex];
+                      };
+
+                      let oppositeWallToFacingDirection = getBackFacingWall(
+                        furniture.facing_direction
+                      );
+
+                      // Currently not implemented
+                      // Needs changing
+                      if (furniture.which_side_touches_wall) {
+                        // touchingWall = furniture.which_side_touches_wall;
+                        // furniture.facing_direction = "north";
+
+                        console.log(
+                          `The ${furniture.name} is facing ${furniture.facing_direction}`
+                        );
+
+                        console.log(
+                          `The ${furniture.name} is opposite facing ${oppositeWallToFacingDirection}`
+                        );
+                      } else {
+                        // Create a list of positions that the furniture can be placed by checking the BackFacingWall
+                      }
+
+                      // get the open tiles to the left of the backFacingWall
+                      const openTiles = [];
+
+                      if (oppositeWallToFacingDirection === "north") {
+                        for (let i = 0; i < roomWidth; i++) {
+                          if (this.layoutGrid.get(i, 1) === " ") {
+                            openTiles.push([1, i]);
+                          }
+                        }
+                      } else if (oppositeWallToFacingDirection === "south") {
+                        for (let i = 0; i < roomWidth; i++) {
+                          if (this.layoutGrid.get(i, roomLength - 2) === " ") {
+                            openTiles.push([roomLength - 2, i]);
+                          }
+                        }
+                      } else if (oppositeWallToFacingDirection === "west") {
+                        for (let i = 0; i < roomLength; i++) {
+                          if (this.layoutGrid.get(roomWidth - 2, i) === " ") {
+                            openTiles.push(i);
+                          }
+                        }
+                      } else if (oppositeWallToFacingDirection === "east") {
+                        // gets the tiles to the left of the backFacingWall
+                        for (let i = 0; i < roomLength; i++) {
+                          // console.log(this.layoutGrid.get(roomWidth - 2, i));
+                          if (this.layoutGrid.get(roomWidth - 2, i) === " ") {
+                            openTiles.push([i, roomWidth - 2]);
+                          }
+                        }
+                      }
+                      // console.log("openTiles:", openTiles);
+                      // console.log("this grid");
+                      // console.log(this.layoutGrid.get(1, 0));
+
+                      // gets the back row of the furniture based on orientation
+                      const backRowPositionsOfFurniture = [];
+                      // console.log(createdFurniture);
+
+                      // Need to implement for west and east
+                      // If i determine that the furniture must touch a specific wall,
+                      // The "back" of the furniture will be the side that is touching the wall
+                      // so if i say the furniture is facing north but touching the east wall, it should have a back that is define as the east
+
+                      if (furniture.facing_direction === "north") {
+                        createdFurniture[createdFurniture.length - 1].forEach(
+                          (item, index) => {
+                            backRowPositionsOfFurniture.push([
+                              y + createdFurniture.length - 1,
+                              x + index,
+                            ]);
+                          }
+                        );
+                      } else if (furniture.facing_direction === "south") {
+                        // Back row is the first row in the array
+
+                        createdFurniture[0].forEach((item, index) => {
+                          backRowPositionsOfFurniture.push([y, x + index]);
+                        });
+                      } else if (furniture.facing_direction === "west") {
+                        // Back row is the first column in the array
+                        // NEED TO IMPLEMENT
+                      } else if (furniture.facing_direction === "east") {
+                        // Back row is the last column in the array
+                        // NEED TO IMPLEMENT
+                      }
+                      // console.log("current position:", y, x);
+                      // console.log(
+                      //   "backRowPositionsOfFurniture:",
+                      //   backRowPositionsOfFurniture
+                      // );
+
+                      // Check if all back row positions are in open tiles
+                      const allPositionsValid =
+                        backRowPositionsOfFurniture.every((position) => {
+                          return openTiles.some(
+                            (openTile) =>
+                              openTile[0] === position[0] &&
+                              openTile[1] === position[1]
+                          );
+                        });
+
+                      if (!allPositionsValid) {
+                        isValid = false;
+                      }
+                    }
+                  } else {
+                    isValid = false;
+                  }
+                } else {
+                  isValid = false; // If out of bounds, mark as invalid
+                }
+              }
+            }
+
+            /*
+
+            I want a section here to check if there is a line that can be drawn from left to right of the grid
+            without intersecting any of the furniture items. This will be used to check if the furniture can be placed.
+
+            I also want to do this from the door to the wall. This will be used to check if the furniture can be placed.
+
+
+            */
+
+            //temporarily place the furniture check to see if it blocks
+            // Preview the placement
+            const { tempLayoutGrid, tempColorGrid } = this.tryPlaceFurniture(
+              x,
+              y,
+              createdFurniture,
+              furniture.colour
+            );
+
+            console.log(`temporarily placing furniture for ${furniture.name}`);
+            tempLayoutGrid.print(tempColorGrid);
+
+            // // Temporarily swap grids
+            const originalLayout = this.layoutGrid;
+            const originalColor = this.colorGrid;
+            this.layoutGrid = tempLayoutGrid;
+            this.colorGrid = tempColorGrid;
+
+            console.log(
+              `Preview placement for ${furniture.name} at position (${x}, ${y}):`
+            );
+            // this.printRoom();
+
+            const isFurnitureBLocking = !this.checkLineLeftToRight();
+
+            if (isFurnitureBLocking) {
+              isValid = false;
+            }
+
+            // Restore original grids
+            this.layoutGrid = originalLayout;
+            this.colorGrid = originalColor;
+
+            // console.log("isValid:", isValid, "x:", x, "y:", y);
+
+            if (isValid) {
+              // You can add additional validation here if needed
+              console.log(`Placing ${furniture.name} at position (${x}, ${y})`);
+              furniturePlaced = true;
+              // Place the furniture permanently
+              for (let i = 0; i < furnitureLength; i++) {
+                for (let j = 0; j < furnitureWidth; j++) {
+                  if (
+                    x + j < roomWidth &&
+                    y + i < roomLength &&
+                    createdFurniture[i][j] !== " "
+                  ) {
+                    this.layoutGrid.set(x + j, y + i, createdFurniture[i][j]);
+                    this.colorGrid.set(x + j, y + i, furniture.colour);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  checkLineLeftToRight() {
+    //create temporary grid to check if a line can be drawn from left to right
+
+    const emptyLeft = [];
+    const emptyRight = [];
+
+    // Iterate over each row to find empty spaces on the left and right edges
+    for (let y = 0; y < this.length; y++) {
+      // Check if the left edge (excluding walls) is empty
+      if (this.layoutGrid.cells[y][this.wallThickness] === " ") {
+        emptyLeft.push({ x: this.wallThickness, y });
+      }
+      // Check if the right edge (excluding walls) is empty
+      if (
+        this.layoutGrid.cells[y][this.width - 1 - this.wallThickness] === " "
+      ) {
+        emptyRight.push({ x: this.width - 1 - this.wallThickness, y });
+      }
+    }
+
+    // Try BFS from each emptyLeft to see if it can reach any emptyRight
+    for (const start of emptyLeft) {
+      for (const end of emptyRight) {
+        if (this.canDrawLine(start, end)) {
+          console.log("Line can be drawn from left to right");
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  // Example BFS to check if a path exists between two points
+  // It fills every possible space to see if it can reach the end
+  canDrawLine(start, end) {
+    const tempGrid = this.cloneGrid();
+    const visited = new Set();
+    const queue = [start]; // start is { x, y }
+    const key = (x, y) => `${x},${y}`;
+
+    while (queue.length > 0) {
+      const { x, y } = queue.shift();
+
+      // If we reached the end
+      if (x === end.x && y === end.y) {
+        console.log("tempGrid");
+        tempGrid.print(this.colorGrid);
+        return true;
+      }
+
+      // Four possible directions
+      const directions = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 },
+      ];
+
+      for (const { dx, dy } of directions) {
+        const nx = x + dx;
+        const ny = y + dy;
+
+        // Check bounds and empty cell
+        if (
+          this.layoutGrid.isWithinBounds(nx, ny) &&
+          !visited.has(key(nx, ny)) &&
+          this.layoutGrid.isEmpty(nx, ny)
+        ) {
+          visited.add(key(nx, ny));
+          queue.push({ x: nx, y: ny });
+          tempGrid.set(nx, ny, "@");
+        }
+      }
+    }
+
+    return false;
+  }
+
+  getFacingDirectionSymbol(facingDirection) {
+    switch (facingDirection) {
+      case "north":
+        return "↑";
+      case "east":
+        return "→";
+      case "south":
+        return "↓";
+      case "west":
+        return "←";
+    }
+  }
+
+  printFurniture(furnitureItem) {
+    console.log("printing furniture");
+    const yLength = furnitureItem.length;
+    const xLength = furnitureItem[0].length;
+    for (let y = 0; y < yLength; y++) {
+      let row = "";
+      for (let x = 0; x < xLength; x++) {
+        if (furnitureItem[y][x] === 0) {
+          row += " . ";
+        } else if (furnitureItem[y][x] === "1") {
+          row += " # ";
+        } else if (furnitureItem[y][x] === "�") {
+          row += " ∎ ";
+        } else if (typeof furnitureItem[y][x] !== "undefined") {
+          row += " " + furnitureItem[y][x] + " ";
+        } else {
+          row += " . ";
+        }
+      }
+      console.log(row);
+    }
+  }
+
+  printRoom() {
+    const colors = {
+      reset: chalk.reset,
+      bright: chalk.bold,
+      dim: chalk.dim,
+      underscore: chalk.underline,
+      bold: chalk.bold,
+      hidden: chalk.hidden,
+      reverse: chalk.inverse,
+
+      // Foreground colors
+      black: chalk.black,
+      red: chalk.red,
+      green: chalk.green,
+      yellow: chalk.yellow,
+      blue: chalk.blue,
+      magenta: chalk.magenta,
+      cyan: chalk.cyan,
+      white: chalk.white,
+
+      // Background colors
+      bgBlack: chalk.bgBlack,
+      bgRed: chalk.bgRed,
+      bgGreen: chalk.bgGreen,
+      bgYellow: chalk.bgYellow,
+      bgBlue: chalk.bgBlue,
+      bgMagenta: chalk.bgMagenta,
+      bgCyan: chalk.bgCyan,
+      bgWhite: chalk.bgWhite,
+    };
+
+    for (let y = 0; y < this.length; y++) {
+      let row = "";
+      for (let x = 0; x < this.width; x++) {
+        const cell = this.layoutGrid.get(x, y);
+        const color = this.colorGrid.get(x, y);
+        let bgColor = colors.reset; // Default background color
+
+        if (typeof cell === "string" && cell.length > 1 && cell.endsWith("b")) {
+          row += colors.dim(" . ");
+        } else {
+          let symbolColor = colors.reset; // Default color
+          if (color && colors[color]) {
+            symbolColor = colors[color];
+          }
+          if (
+            color &&
+            colors[`bg${color.charAt(0).toUpperCase() + color.slice(1)}`]
+          ) {
+            bgColor =
+              colors[`bg${color.charAt(0).toUpperCase() + color.slice(1)}`];
+          }
+          const symbol = cell ? ` ${cell} ` : "   ";
+          row += bgColor(symbolColor(symbol));
+        }
+      }
+      console.log(row);
+    }
+  }
+}
+
+----- ./src/removed_furniture_config.json -----
+{
+    "name": "Coffee Table",
+    "width": 1.2,
+    "length": 0.8,
+    "buffer_width": 0.2,
+    "buffer_length": 0.2,
+    "facing_direction": "any",
+    "must_touch_wall": false
+  },
+  {
+    "name": "Bookshelf",
+    "width": 0.8,
+    "length": 2.5,
+    "buffer_width": 0.3,
+    "buffer_length": 0.4,
+    "facing_direction": "east",
+    "must_touch_wall": true
+  },
+  {
+    "name": "TV Stand",
+    "width": 1.5,
+    "length": 0.6,
+    "buffer_width": 0.3,
+    "buffer_length": 0.2,
+    "facing_direction": "south",
+    "must_touch_wall": true
+  },
+  {
+    "name": "Armchair",
+    "width": 1.1,
+    "length": 1.1,
+    "buffer_width": 0.3,
+    "buffer_length": 0.3,
+    "facing_direction": "west",
+    "must_touch_wall": false
+  }
+----- ./src/sketch.js -----
+// ... (p5.js visualization code -
+//     setup, draw, color definitions, buffer zone visualization, etc.)
+
+// Assuming you have the 'layouts' array available from layout_generator.js
+// You might need to adjust how you pass the data between the two scripts
+
+// Visualize the first layout
+visualizeLayout(layouts[0]);
+
+// ... (layout data and setup remain the same)
+
+function draw() {
+  background(220);
+
+  // Draw walls first
+  fill(165, 42, 42); // Example color for walls (brown)
+  // ... (draw walls as before)
+
+  // Draw layout content with buffer zones
+  for (let y = 0; y < layout.length; y++) {
+    for (let x = 0; x < layout[y].length; x++) {
+      const cell = layout[y][x];
+
+      let fillColor, bufferColor;
+      switch (cell) {
+        case 0:
+          fillColor = color(255);
+          break; // Empty: White
+        case "W":
+          fillColor = color(135, 206, 250);
+          bufferColor = color(176, 224, 230); // Lighter Sky Blue
+          break;
+        case "D":
+          fillColor = color(160, 82, 45);
+          bufferColor = color(205, 133, 63); // Lighter Sienna
+          break;
+        case "S":
+          fillColor = color(128, 0, 0);
+          bufferColor = color(178, 34, 34); // Lighter Maroon
+          break;
+        case "C":
+          fillColor = color(210, 105, 30);
+          bufferColor = color(230, 145, 56); // Lighter Chocolate
+          break;
+        case "B":
+          fillColor = color(139, 69, 19);
+          bufferColor = color(165, 105, 41); // Lighter Saddle Brown
+          break;
+        case "T":
+          fillColor = color(0, 0, 0);
+          bufferColor = color(64, 64, 64); // Lighter Black (Gray)
+          break;
+        case "A":
+          fillColor = color(255, 69, 0);
+          bufferColor = color(255, 140, 0); // Lighter Orange Red
+          break;
+        default:
+          fillColor = color(128);
+          break; // Gray for unknown
+      }
+
+      // Draw the main cell
+      fill(fillColor);
+      rect(x * cellSize, y * cellSize, cellSize, cellSize);
+
+      // Draw buffer zone if applicable
+      if (bufferColor) {
+        fill(bufferColor);
+        // Adjust buffer size based on your configuration and logic
+        const bufferSize = 0.2 * cellSize; // Example: 20% of cell size
+        rect(
+          x * cellSize + bufferSize,
+          y * cellSize + bufferSize,
+          cellSize - 2 * bufferSize,
+          cellSize - 2 * bufferSize
+        );
+      }
+
+      // ... (Add labels if needed, similar to before)
+    }
+  }
+
+  // Draw windows and doors on the walls (with buffer zones if applicable)
+  // ... (implementation based on your configuration)
+}
+
+----- ./tests/Room.test.js -----
+describe("Room", () => {
+  test("should correctly initialize with valid config", () => {
+    const config = {
+      room: { width: 10, length: 10, wall_thickness: 1 },
+    };
+    const room = new Room(config);
+    expect(room.width).toBe(12);
+    expect(room.length).toBe(12);
+  });
+
+  test("should throw error with invalid config", () => {
+    const config = { room: { width: -1, length: 10 } };
+    expect(() => new Room(config)).toThrow("Invalid room width");
+  });
+});
+
